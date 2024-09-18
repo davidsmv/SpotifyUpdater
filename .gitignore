@@ -1,16 +1,15 @@
-*.DS_Store
-.envrc
-.direnv
-.direnv/*
-.mypy_cache/*
-*.toml
-trees_app/.streamlit/config.toml
-.DS_Store
-*.mypy_cache/*
-*.mypy_cache
-*__pycache__*
-
-#environment files
-.venv/
-.venv
+# Environment files
 *.env
+env.json
+event.json
+
+# Python virtual environments
+.venv/
+
+
+# Ignore AWS SAM build artifacts
+.aws-sam/
+
+# Ignore Python cache files
+__pycache__/
+*.pyc

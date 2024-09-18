@@ -1,55 +1,84 @@
 # SpotifyUpdater
 
-# Spotify Playlist Updater Lambda
+This repository contains the code for an AWS Lambda function that automatically updates a Spotify playlist based on the most recently listened-to tracks. The function is built and deployed using the AWS Serverless Application Model (SAM) and interacts with the Spotify API.
 
-This repository contains the code for an AWS Lambda function that automatically updates a Spotify playlist based on the most recently listened-to tracks. The function is designed to run periodically (e.g., every other day) using AWS EventBridge to trigger the update.
+## **Table of Contents**
 
-## Table of Contents
-
-- [Overview](#overview)
+- [Introduction](#introduction)
+- [Features](#features)
+- [Architecture](#architecture)
 - [Prerequisites](#prerequisites)
-- [Setup](#setup)
-- [Configuration](#configuration)
-- [Deployment](#deployment)
-- [Testing](#testing)
+- [Setup and Deployment](#setup-and-deployment)
+  - [1. Clone the Repository](#1-clone-the-repository)
+  - [2. Install Dependencies](#2-install-dependencies)
+  - [3. AWS Configuration](#3-aws-configuration)
+  - [4. Spotify API Credentials](#4-spotify-api-credentials)
+  - [5. Build and Deploy](#5-build-and-deploy)
+- [Local Testing](#local-testing)
+- [Project Structure](#project-structure)
+- [Usage](#usage)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
 - [License](#license)
 
-## Overview
+## **Introduction**
 
-The `Spotify Playlist Updater` Lambda function:
-- Retrieves the user's most recently listened-to tracks on Spotify.
-- Updates a specified playlist with these tracks.
+This project automates the process of updating a Spotify playlist with the latest top tracks. It uses AWS Lambda for serverless execution and is scheduled to run every other day using Amazon EventBridge (formerly CloudWatch Events).
 
-The function uses Spotify's API, with credentials securely stored in AWS Secrets Manager. It also relies on AWS services like Lambda and EventBridge to automate the process.
+## **Features**
 
-## Prerequisites
+- **Automated Playlist Updates**: Refreshes your Spotify playlist with new tracks every other day.
+- **Serverless Architecture**: Built using AWS Lambda and AWS SAM for scalable and cost-effective deployment.
+- **Secure Credential Management**: Uses AWS Secrets Manager to securely store and access Spotify API credentials.
+- **Configurable Schedule**: The update frequency can be adjusted via the AWS SAM template.
 
-Before deploying and running this Lambda function, you'll need:
+## **Architecture**
 
-1. **AWS Account**: To create and manage the Lambda function, Secrets Manager, and EventBridge rules.
-2. **Spotify Developer Account**: To obtain the necessary API credentials.
-3. **Python Environment**: To install dependencies and package the Lambda function.
+1. **AWS Lambda Function**: Executes the Python script to update the Spotify playlist.
+2. **Amazon EventBridge**: Triggers the Lambda function based on a specified cron schedule.
+3. **AWS Secrets Manager**: Securely stores Spotify API credentials.
+4. **Spotify API**: The Lambda function interacts with Spotify's API to update the playlist.
 
-## Setup
+## **Prerequisites**
 
-### 1. Clone the Repository
+- **AWS Account**: An active AWS account with permissions to create Lambda functions, EventBridge rules, and access Secrets Manager.
+- **AWS CLI**: Installed and configured with your AWS credentials.
+- **AWS SAM CLI**: Installed on your local machine. [Install the AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html)
+- **Docker**: Installed and running for local testing. [Get Docker](https://docs.docker.com/get-docker/)
+- **Spotify Account**: A Spotify account with the necessary permissions to create and modify playlists.
+- **Spotify Developer Application**: Created in the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard/) to obtain API credentials.
+
+## **Setup and Deployment**
+
+### **1. Clone the Repository**
 
 ```bash
 git clone https://github.com/davidsmv/SpotifyUpdater.git
-cd spotify-playlist-updater
+cd SpotifyUpdater
 ```
 
-### 2. Install Dependencies
+### **2. Install Dependencies**
 
-To install the necessary Python dependencies, create a folder and run:
+Install the required Python packages:
 
 ```bash
-mkdir spotify_lambda
-cd spotify_lambda
-pip install -r ../requirements.txt -t .
+pip install -r requirements.txt
 ```
 
-This command installs the dependencies listed in `requirements.txt` into the current directory (`.`), making them ready for deployment with AWS Lambda.
+### **3. AWS Configuration**
+
+Ensure your AWS CLI is configured with the necessary credentials:
+
+```bash
+aws configure
+```
+
+- **AWS Access Key ID**
+- **AWS Secret Access Key**
+- **Default region name**: e.g., `us-east-1`
+
+
+### **4. Spotify API Credentials**
 
 ### 3. Obtain Spotify API Credentials
 
@@ -57,63 +86,121 @@ You need to have the following Spotify API credentials:
 - `SPOTIPY_CLIENT_ID`
 - `SPOTIPY_CLIENT_SECRET`
 - `SPOTIPY_REFRESH_TOKEN`
-
-You can generate the `SPOTIPY_REFRESH_TOKEN` using the `get_refresh_token.py` script provided in this repository.
-
-### 4. Store Credentials in AWS Secrets Manager
-
-Save the following secrets in AWS Secrets Manager under the secret name `spotify/credentials`:
-
-- `SPOTIPY_CLIENT_ID`
-- `SPOTIPY_CLIENT_SECRET`
-- `SPOTIPY_REFRESH_TOKEN`
 - `SPOTIFY_PLAYLIST_ID`
-- `AWS_ACCESS_KEY`
-- `AWS_SECRET_ACCESS_KEY`
 
-Ensure that these secrets are stored securely, as they are critical for the function's operation.
 
-## Configuration
+#### **a. Create a Spotify Developer Application**
 
-### Lambda Function
+- Log in to the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard/).
+- Create a new application to obtain the **Client ID** and **Client Secret**.
 
-The main function is located in `lambda_function.py`. It consists of the following components:
+#### **b. Obtain a Refresh Token**
 
-- **`get_secret()`**: Retrieves secrets from AWS Secrets Manager.
-- **`get_spotify_instance()`**: Authenticates with the Spotify API using the credentials stored in Secrets Manager.
-- **`lambda_handler()`**: The entry point for the Lambda function, which retrieves the latest tracks and updates the specified playlist.
+- You can generate the `SPOTIPY_REFRESH_TOKEN` using the `app/service/get_refresh_token.py` script provided in this repository.
 
-### AWS Configuration
+#### **c. Store Credentials in AWS Secrets Manager**
 
-- **Secrets Manager**: Ensure your Spotify API credentials and AWS credentials are securely stored in Secrets Manager.
-- **EventBridge Rule**: Set up an EventBridge rule to trigger the Lambda function on a regular schedule (e.g., every other day).
+Create a secret in AWS Secrets Manager with the following key-value pairs:
 
-## Deployment
+- **SPOTIPY_CLIENT_ID**: Your Spotify Client ID.
+- **SPOTIPY_CLIENT_SECRET**: Your Spotify Client Secret.
+- **SPOTIPY_REFRESH_TOKEN**: Your Spotify Refresh Token.
+- **SPOTIFY_PLAYLIST_ID**: The ID of the Spotify playlist you want to update.
 
-### 1. Package the Lambda Function
-
-After installing the dependencies and placing `lambda_function.py` in the `spotify_lambda` directory, package the function:
+**AWS CLI Command to Create the Secret:**
 
 ```bash
-zip -r9 ../spotify_lambda.zip .
+aws secretsmanager create-secret \
+    --name spotify/credentials \
+    --secret-string '{"SPOTIPY_CLIENT_ID":"your-client-id","SPOTIPY_CLIENT_SECRET":"your-client-secret","SPOTIPY_REFRESH_TOKEN":"your-refresh-token","SPOTIFY_PLAYLIST_ID":"your-playlist-id"}' \
+    --region us-east-1
 ```
 
-### 2. Deploy to AWS Lambda
+### **5. Build and Deploy**
 
-- Go to the [AWS Lambda Console](https://console.aws.amazon.com/lambda/).
-- Create a new Lambda function.
-- Choose "Upload from" and select "Zip file" to upload `spotify_lambda.zip`.
-- Set the handler to `lambda_function.lambda_handler`.
-- Attach the necessary IAM role with permissions to access Secrets Manager and other required AWS services.
+#### **a. Build the Application**
 
-### 3. Set Up EventBridge
+```bash
+sam build
+```
 
-Create an EventBridge rule to trigger the Lambda function at your desired frequency (e.g., every other day). This will automate the playlist update process.
+#### **b. Deploy the Application**
 
-## Testing
+Use the guided deployment to configure parameters:
 
-To test the Lambda function:
+```bash
+sam deploy --guided
+```
 
-1. **Manually Trigger the Lambda**: You can manually trigger the Lambda function from the AWS Lambda console to ensure it works correctly.
-2. **Check CloudWatch Logs**: Monitor the logs in CloudWatch to verify the function's execution and troubleshoot any issues.
-3. **Verify Spotify Playlist**: After running the function, check the Spotify playlist to ensure it has been updated as expected.
+During the guided deployment:
+
+- **Stack Name**: `spotify-playlist-updater-stack` (or your preferred name)
+- **AWS Region**: `us-east-1` (ensure it matches where your secret is stored)
+- **Parameter SecretName**: `spotify/credentials` (the name of your secret)
+- **Confirm changes before deploy**: `N`
+- **Allow SAM CLI IAM role creation**: `Y`
+- **Save arguments to samconfig.toml**: `Y`
+
+## **Local Testing**
+
+To test the function locally before deployment:
+
+1. **Create a Test Event File**
+
+   Create `event.json` with the following content:
+
+   ```json
+   {}
+   ```
+
+2. **Invoke the Function Locally**
+
+   ```bash
+   sam local invoke SpotifyUpdateFunction -e event.json
+   ```
+
+   Ensure Docker is running, as SAM CLI uses it to simulate the Lambda environment.
+
+## **Project Structure**
+
+```
+SpotifyUpdater/
+├── app/
+│   ├── handlers/
+│   │   ├── spotify_handler.py
+│   |── service/
+│   │   │── get_refresh_token.py
+│   │   │── spotify_updater.py
+│   ├── __init__.py
+├── template.yaml
+├── requirements.txt
+├── README.md
+├── .gitignore
+```
+
+- **app/**: Contains the Lambda function code and dependencies.
+- **handlers/**: Contains the `spotify_handler.py` script with the `lambda_handler` funtion.
+- **service/**: Contains the `get_refresh_token.py` to get the refresh token neccesary to update the playlist and `spotify_updater.py` class that handles the entire process, called by `lambda_handler`
+- **template.yaml**: AWS SAM template defining the serverless application.
+- **requirements.txt**: Lists Python dependencies.
+- **README.md**: Project documentation.
+- **.gitignore**: Specifies files and directories to ignore in version control.
+
+## **Usage**
+
+Once deployed, the Lambda function will automatically run every other day at midnight (Bogota, Colombia time) to update your Spotify playlist.
+
+## **Troubleshooting**
+
+- **Deployment Errors**: Ensure your AWS credentials have the necessary permissions and that all parameters are correctly specified during deployment.
+- **Access Denied Errors**: Verify that the IAM role associated with your Lambda function has the required permissions to access AWS Secrets Manager.
+- **Invalid Spotify Credentials**: Double-check the credentials stored in AWS Secrets Manager for accuracy.
+- **Function Not Triggering**: Confirm that the EventBridge rule is correctly configured and enabled.
+
+## **Contributing**
+
+Contributions are welcome! Please open an issue or submit a pull request for any improvements or bug fixes.
+
+## **License**
+
+This project is licensed under the [MIT License](LICENSE).
