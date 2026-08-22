@@ -1,7 +1,7 @@
-import spotipy
-from spotipy.oauth2 import SpotifyOAuth
 import os
+
 from dotenv import load_dotenv
+from spotipy.oauth2 import SpotifyOAuth
 
 # Load environment variables from .env file
 load_dotenv()
@@ -26,4 +26,3 @@ print(token_info)
 # Print out the refresh token
 print("Access Token:", token_info['access_token'])
 print("Refresh Token:", token_info['refresh_token'])
-

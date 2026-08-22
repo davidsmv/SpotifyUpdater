@@ -3,10 +3,10 @@ Transform: AWS::Serverless-2016-10-31
 
 
 Parameters:
-  SecretName:
+  ParameterName:
     Type: String
-    Description: The name of the secret in AWS Secrets Manager
-    Default: spotify/credentials
+    Description: The name of the SSM Parameter Store parameter holding Spotify credentials
+    Default: /spotify/credentials
 
 Resources:
   SpotifyUpdateFunction:
@@ -17,7 +17,7 @@ Resources:
       Timeout: 30
       Environment:
         Variables:
-          SECRET_NAME: !Ref SecretName
+          PARAMETER_NAME: !Ref ParameterName
       Events:
         ScheduledEvent:
           Type: Schedule
@@ -27,6 +27,6 @@ Resources:
         - Version: '2012-10-17'
           Statement:
             - Effect: Allow
-              Action: secretsmanager:GetSecretValue
+              Action: ssm:GetParameter
               Resource: !Sub |
-                arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${SecretName}*
+                arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ParameterName}

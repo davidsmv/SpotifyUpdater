@@ -29,14 +29,14 @@ This project automates the process of updating a Spotify playlist with the lates
 
 - **Automated Playlist Updates**: Refreshes your Spotify playlist with new tracks every other day.
 - **Serverless Architecture**: Built using AWS Lambda and AWS SAM for scalable and cost-effective deployment.
-- **Secure Credential Management**: Uses AWS Secrets Manager to securely store and access Spotify API credentials.
+- **Secure Credential Management**: Uses AWS Systems Manager Parameter Store (SecureString) to securely store and access Spotify API credentials at no additional cost.
 - **Configurable Schedule**: The update frequency can be adjusted via the AWS SAM template.
 
 ## **Architecture**
 
 1. **AWS Lambda Function**: Executes the Python script to update the Spotify playlist.
 2. **Amazon EventBridge**: Triggers the Lambda function based on a specified cron schedule.
-3. **AWS Secrets Manager**: Securely stores Spotify API credentials.
+3. **AWS Systems Manager Parameter Store**: Securely stores Spotify API credentials as a SecureString.
 4. **Spotify API**: The Lambda function interacts with Spotify's API to update the playlist.
 
 ## **Prerequisites**
@@ -98,23 +98,26 @@ You need to have the following Spotify API credentials:
 
 - You can generate the `SPOTIPY_REFRESH_TOKEN` using the `app/service/get_refresh_token.py` script provided in this repository.
 
-#### **c. Store Credentials in AWS Secrets Manager**
+#### **c. Store Credentials in AWS Systems Manager Parameter Store**
 
-Create a secret in AWS Secrets Manager with the following key-value pairs:
+Create a `SecureString` parameter with a JSON payload containing the following key-value pairs:
 
 - **SPOTIPY_CLIENT_ID**: Your Spotify Client ID.
 - **SPOTIPY_CLIENT_SECRET**: Your Spotify Client Secret.
 - **SPOTIPY_REFRESH_TOKEN**: Your Spotify Refresh Token.
 - **SPOTIFY_PLAYLIST_ID**: The ID of the Spotify playlist you want to update.
 
-**AWS CLI Command to Create the Secret:**
+**AWS CLI Command to Create the Parameter:**
 
 ```bash
-aws secretsmanager create-secret \
-    --name spotify/credentials \
-    --secret-string '{"SPOTIPY_CLIENT_ID":"your-client-id","SPOTIPY_CLIENT_SECRET":"your-client-secret","SPOTIPY_REFRESH_TOKEN":"your-refresh-token","SPOTIFY_PLAYLIST_ID":"your-playlist-id"}' \
+aws ssm put-parameter \
+    --name /spotify/credentials \
+    --type SecureString \
+    --value '{"SPOTIPY_CLIENT_ID":"your-client-id","SPOTIPY_CLIENT_SECRET":"your-client-secret","SPOTIPY_REFRESH_TOKEN":"your-refresh-token","SPOTIFY_PLAYLIST_ID":"your-playlist-id"}' \
     --region us-east-1
 ```
+
+Standard `SecureString` parameters are free (no per-parameter monthly fee, unlike Secrets Manager).
 
 ### **5. Build and Deploy**
 
@@ -136,7 +139,7 @@ During the guided deployment:
 
 - **Stack Name**: `spotify-playlist-updater-stack` (or your preferred name)
 - **AWS Region**: `us-east-1` (ensure it matches where your secret is stored)
-- **Parameter SecretName**: `spotify/credentials` (the name of your secret)
+- **Parameter ParameterName**: `/spotify/credentials` (the name of your SSM parameter)
 - **Confirm changes before deploy**: `N`
 - **Allow SAM CLI IAM role creation**: `Y`
 - **Save arguments to samconfig.toml**: `Y`
@@ -193,32 +196,32 @@ Once deployed, the Lambda function will automatically run every other day at mid
 ## **Troubleshooting**
 
 - **Deployment Errors**: Ensure your AWS credentials have the necessary permissions and that all parameters are correctly specified during deployment.
-- **Access Denied Errors**: Verify that the IAM role associated with your Lambda function has the required permissions to access AWS Secrets Manager.
-- **Invalid Spotify Credentials**: Double-check the credentials stored in AWS Secrets Manager for accuracy.
+- **Access Denied Errors**: Verify that the IAM role associated with your Lambda function has the required permissions to access AWS Systems Manager Parameter Store (`ssm:GetParameter`).
+- **Invalid Spotify Credentials**: Double-check the credentials stored in the SSM parameter for accuracy.
 - **Function Not Triggering**: Confirm that the EventBridge rule is correctly configured and enabled.
-- **`SpotifyOauthError: invalid_grant, Refresh token revoked`**: Spotify invalidated the stored refresh token (happens after long inactivity, revoking app access from your Spotify account, or regenerating the Client Secret). Fix it by generating a new refresh token and updating the secret:
+- **`SpotifyOauthError: invalid_grant, Refresh token revoked`**: Spotify invalidated the stored refresh token (happens after long inactivity, revoking app access from your Spotify account, or regenerating the Client Secret). Fix it by generating a new refresh token and updating the parameter:
 
   1. Activate the venv and run the token generator locally (it reuses a cached login if available, otherwise it opens a browser to authorize):
      ```bash
      python app/service/get_refresh_token.py
      ```
   2. Copy the printed `Refresh Token` value.
-  3. Update only the `SPOTIPY_REFRESH_TOKEN` field in the AWS Secrets Manager secret, keeping the other fields intact:
+  3. Update only the `SPOTIPY_REFRESH_TOKEN` field in the SSM parameter, keeping the other fields intact:
      ```bash
      python -c "
      import boto3, json
-     client = boto3.client('secretsmanager', region_name='us-east-1')
-     secret = json.loads(client.get_secret_value(SecretId='spotify/credentials')['SecretString'])
+     client = boto3.client('ssm', region_name='us-east-1')
+     secret = json.loads(client.get_parameter(Name='/spotify/credentials', WithDecryption=True)['Parameter']['Value'])
      secret['SPOTIPY_REFRESH_TOKEN'] = 'PASTE_NEW_REFRESH_TOKEN_HERE'
-     client.update_secret(SecretId='spotify/credentials', SecretString=json.dumps(secret))
+     client.put_parameter(Name='/spotify/credentials', Value=json.dumps(secret), Type='SecureString', Overwrite=True)
      "
      ```
   4. (Optional) Update `SPOTIPY_REFRESH_TOKEN` in your local `.env` too, so it matches.
   5. Verify it works by invoking the handler directly, without needing Docker/SAM:
      ```bash
-     $env:SECRET_NAME='spotify/credentials'; $env:AWS_REGION='us-east-1'; python -c "from app.handlers.spotify_handler import lambda_handler; print(lambda_handler({}, None))"
+     $env:PARAMETER_NAME='/spotify/credentials'; $env:AWS_REGION='us-east-1'; python -c "from app.handlers.spotify_handler import lambda_handler; print(lambda_handler({}, None))"
      ```
-     A successful run returns `{'statusCode': 200, 'body': '"Playlist updated successfully!"'}`. No redeploy is needed since the secret is read at runtime.
+     A successful run returns `{'statusCode': 200, 'body': '"Playlist updated successfully!"'}`. No redeploy is needed since the parameter is read at runtime.
 
 ## **Contributing**
 
