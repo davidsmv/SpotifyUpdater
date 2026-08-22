@@ -196,6 +196,29 @@ Once deployed, the Lambda function will automatically run every other day at mid
 - **Access Denied Errors**: Verify that the IAM role associated with your Lambda function has the required permissions to access AWS Secrets Manager.
 - **Invalid Spotify Credentials**: Double-check the credentials stored in AWS Secrets Manager for accuracy.
 - **Function Not Triggering**: Confirm that the EventBridge rule is correctly configured and enabled.
+- **`SpotifyOauthError: invalid_grant, Refresh token revoked`**: Spotify invalidated the stored refresh token (happens after long inactivity, revoking app access from your Spotify account, or regenerating the Client Secret). Fix it by generating a new refresh token and updating the secret:
+
+  1. Activate the venv and run the token generator locally (it reuses a cached login if available, otherwise it opens a browser to authorize):
+     ```bash
+     python app/service/get_refresh_token.py
+     ```
+  2. Copy the printed `Refresh Token` value.
+  3. Update only the `SPOTIPY_REFRESH_TOKEN` field in the AWS Secrets Manager secret, keeping the other fields intact:
+     ```bash
+     python -c "
+     import boto3, json
+     client = boto3.client('secretsmanager', region_name='us-east-1')
+     secret = json.loads(client.get_secret_value(SecretId='spotify/credentials')['SecretString'])
+     secret['SPOTIPY_REFRESH_TOKEN'] = 'PASTE_NEW_REFRESH_TOKEN_HERE'
+     client.update_secret(SecretId='spotify/credentials', SecretString=json.dumps(secret))
+     "
+     ```
+  4. (Optional) Update `SPOTIPY_REFRESH_TOKEN` in your local `.env` too, so it matches.
+  5. Verify it works by invoking the handler directly, without needing Docker/SAM:
+     ```bash
+     $env:SECRET_NAME='spotify/credentials'; $env:AWS_REGION='us-east-1'; python -c "from app.handlers.spotify_handler import lambda_handler; print(lambda_handler({}, None))"
+     ```
+     A successful run returns `{'statusCode': 200, 'body': '"Playlist updated successfully!"'}`. No redeploy is needed since the secret is read at runtime.
 
 ## **Contributing**
 
