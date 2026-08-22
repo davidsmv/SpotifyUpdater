@@ -3,6 +3,9 @@
 env.json
 event.json
 
+# Spotipy local token cache
+.cache
+
 # Python virtual environments
 .venv/
 
